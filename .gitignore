@@ -1,0 +1,5 @@
+*~
+dist-newstyle
+dist
+.cabal-sandbox
+dist
