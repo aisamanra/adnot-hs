@@ -3,8 +3,10 @@ module Data.Adnot ( Value(..)
                   , Product
                   , decodeValue
                   , encodeValue
+                  , module Data.Adnot.Class
                   ) where
 
 import Data.Adnot.Emit
 import Data.Adnot.Parse
 import Data.Adnot.Type
+import Data.Adnot.Class
