@@ -1,49 +1,33 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Data.ADTN where
+module Data.Adnot.Parse (decodeValue) where
 
 import           Control.Applicative((<|>))
-import           Data.Attoparsec.ByteString
 import           Data.Attoparsec.ByteString.Char8
 import           Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import           Data.Map.Strict (Map)
 import qualified Data.Map as M
-import           Data.Text (Text)
 import qualified Data.Text as T
-import           Data.Vector (Vector)
 import qualified Data.Vector as V
 
-
-data Value
-  = Sum Text Array
-  | Product Object
-  | List Array
-  | Integer Integer
-  | Double Double
-  | Symbol Text
-  | String Text
-    deriving (Eq, Show)
-
-type Array = Vector Value
-type Object = Map Text Value
+import           Data.Adnot.Type
 
 decodeValue :: ByteString -> Either String Value
 decodeValue = parseOnly pVal
-  where pVal :: Parser Value
-        pVal = skipSpace *> (pSum <|> pProd <|> pList <|> pLit)
-        pSum = Sum <$> (char '(' *> skipSpace *> pIdent)
+  where pVal = ws *> (pSum <|> pProd <|> pList <|> pLit)
+        pSum = Sum <$> (char '(' *> ws *> pIdent)
                    <*> (pValueList <* char ')')
         pProd =  Product . M.fromList
-             <$> (char '{' *> pProdBody <* skipSpace <* char '}')
+             <$> (char '{' *> pProdBody <* ws <* char '}')
         pProdBody = many' pPair
-        pPair = (,) <$> (skipSpace *> pIdent) <*> pVal
-        pList = List <$> (char '[' *> pValueList <* skipSpace <* char ']')
+        pPair = (,) <$> (ws *> pIdent) <*> pVal
+        pList = List <$> (char '[' *> pValueList <* ws <* char ']')
         pLit  =  Symbol  <$> pIdent
              <|> String  <$> pString
              <|> Integer <$> decimal
         pValueList = V.fromList <$> many' pVal
-        pIdent = T.pack <$> many1' letter_ascii
+        pIdent = T.pack <$>
+                 ((:) <$> (letter_ascii <|> char '_')
+                      <*> many' (letter_ascii <|> digit <|> char '_'))
         pString = T.pack <$> (char '"' *> manyTill pStrChar (char '"'))
         pStrChar =  '\n' <$ string "\\n"
                 <|> '\t' <$ string "\\t"
@@ -54,3 +38,5 @@ decodeValue = parseOnly pVal
                 <|> '\"' <$ string "\\\""
                 <|> '\\' <$ string "\\\\"
                 <|> anyChar
+        ws = skipSpace *> ((comment *> ws) <|> return ())
+        comment = char '#' *> manyTill anyChar (char '\n')
