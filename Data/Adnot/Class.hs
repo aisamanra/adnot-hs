@@ -12,8 +12,10 @@ module Data.Adnot.Class where
 
 import           Data.Adnot.Type
 import           Data.Adnot.Emit
+import           Data.Adnot.Parse
 import           Data.Int
 import           Data.Word
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Foldable as F
 import qualified Data.List.NonEmpty as NE
@@ -168,6 +170,12 @@ instance ToAdnot a => ToAdnot (NE.NonEmpty a) where
 instance ToAdnot a => ToAdnot (MS.Map T.Text a) where
   toAdnot ls = Product (fmap toAdnot ls)
 
+product :: [(T.Text, Value)] -> Value
+product = Product . MS.fromList
+
+(.=) :: ToAdnot t => T.Text -> t -> (T.Text, Value)
+key .= val = (key, toAdnot val)
+
 -- * Tuples
 instance ToAdnot () where
   toAdnot () = List []
@@ -192,18 +200,214 @@ instance (ToAdnot a, ToAdnot b) => ToAdnot (Either a b) where
   toAdnot (Right y) = Sum "Right" [toAdnot y]
 
 instance ToAdnot Bool where
-  toAdnot True  = Symbol "True"
-  toAdnot False = Symbol "False"
+  toAdnot True  = String "True"
+  toAdnot False = String "False"
 
 -- * Parsing
 
 type ParseError = String
 type Parser a = Either ParseError a
 
+niceType :: Value -> String
+niceType Sum {}     = "sum"
+niceType Product {} = "product"
+niceType List {}    = "list"
+niceType Integer {} = "integer"
+niceType Double {}  = "double"
+niceType String {}  = "string"
+
 withSum :: String -> (T.Text -> Array -> Parser a) -> Value -> Parser a
 withSum n k val = case val of
   Sum t as -> k t as
   _        -> Left ("Expected sum in " ++ n)
 
+withProd :: String -> (Product -> Parser a) -> Value -> Parser a
+withProd n k val = case val of
+  Product as -> k as
+  _          -> Left ("Expected product in " ++ n)
+
+withList :: String -> (Array -> Parser a) -> Value -> Parser a
+withList n k val = case val of
+  List as -> k as
+  _       -> Left ("Expected list in " ++ n)
+
+withString :: String -> (T.Text -> Parser a) -> Value -> Parser a
+withString n k val = case val of
+  String t -> case k t of
+    Right x -> Right x
+    Left msg -> Left (msg ++ " in " ++ n)
+  _        -> Left ("Expected string in " ++ n)
+
+decode :: FromAdnot a => BS.ByteString -> Maybe a
+decode x = case decodeValue x of
+  Left _ -> Nothing
+  Right y -> case parseAdnot y of
+    Left _ -> Nothing
+    Right z -> Just z
+
+decodeEither :: FromAdnot a => BS.ByteString -> Either String a
+decodeEither x = do
+  y <- decodeValue x
+  parseAdnot y
+
 class FromAdnot a where
   parseAdnot :: Value -> Parser a
+
+instance FromAdnot Value where
+  parseAdnot v = return v
+
+instance FromAdnot Int where
+  parseAdnot (Integer n) = return (fromIntegral n)
+  parseAdnot n = Left ("Expected integer, found " ++ niceType n)
+
+instance FromAdnot Integer where
+  parseAdnot (Integer n) = return n
+  parseAdnot n = Left ("Expected integer, found " ++ niceType n)
+
+instance FromAdnot Int8 where
+  parseAdnot (Integer n) = return (fromIntegral n)
+  parseAdnot n = Left ("Expected integer, found " ++ niceType n)
+
+instance FromAdnot Int16 where
+  parseAdnot (Integer n) = return (fromIntegral n)
+  parseAdnot n = Left ("Expected integer, found " ++ niceType n)
+
+instance FromAdnot Int32 where
+  parseAdnot (Integer n) = return (fromIntegral n)
+  parseAdnot n = Left ("Expected integer, found " ++ niceType n)
+
+instance FromAdnot Int64 where
+  parseAdnot (Integer n) = return (fromIntegral n)
+  parseAdnot n = Left ("Expected integer, found " ++ niceType n)
+
+instance FromAdnot Word8 where
+  parseAdnot (Integer n) = return (fromIntegral n)
+  parseAdnot n = Left ("Expected integer, found " ++ niceType n)
+
+instance FromAdnot Word16 where
+  parseAdnot (Integer n) = return (fromIntegral n)
+  parseAdnot n = Left ("Expected integer, found " ++ niceType n)
+
+instance FromAdnot Word32 where
+  parseAdnot (Integer n) = return (fromIntegral n)
+  parseAdnot n = Left ("Expected integer, found " ++ niceType n)
+
+instance FromAdnot Word64 where
+  parseAdnot (Integer n) = return (fromIntegral n)
+  parseAdnot n = Left ("Expected integer, found " ++ niceType n)
+
+-- Rational/Floating types
+
+instance FromAdnot Double where
+  parseAdnot (Double d) = return d
+  parseAdnot n = Left ("Expected double, found " ++ niceType n)
+
+instance FromAdnot Float where
+  parseAdnot (Double d) = return (fromRational (toRational d))
+  parseAdnot n = Left ("Expected double, found " ++ niceType n)
+
+-- String types
+
+instance FromAdnot T.Text where
+  parseAdnot (String t) = return t
+  parseAdnot n = Left ("Expected string, found " ++ niceType n)
+
+instance FromAdnot TL.Text where
+  parseAdnot (String t) = return (TL.fromStrict t)
+  parseAdnot n = Left ("Expected string, found " ++ niceType n)
+
+instance {-# INCOHERENT #-} FromAdnot String where
+  parseAdnot (String t) = return (T.unpack t)
+  parseAdnot n = Left ("Expected string, found " ++ niceType n)
+
+-- sequence types
+
+instance FromAdnot t => FromAdnot [t] where
+  parseAdnot (List ts) =
+    fmap (V.toList) (traverse parseAdnot ts)
+  parseAdnot n = Left ("Expected list, found " ++ niceType n)
+
+instance FromAdnot t => FromAdnot (V.Vector t) where
+  parseAdnot (List ts) = traverse parseAdnot ts
+  parseAdnot n = Left ("Expected list, found " ++ niceType n)
+
+instance FromAdnot t => FromAdnot (Seq.Seq t) where
+  parseAdnot (List ts) =
+    fmap (Seq.fromList . V.toList) (traverse parseAdnot ts)
+  parseAdnot n = Left ("Expected list, found " ++ niceType n)
+
+instance FromAdnot t => FromAdnot (NE.NonEmpty t) where
+  parseAdnot (List ts) =
+    fmap (NE.fromList . V.toList) (traverse parseAdnot ts)
+  parseAdnot n = Left ("Expected list, found " ++ niceType n)
+
+-- tuples
+
+instance FromAdnot () where
+  parseAdnot (List []) = return ()
+  parseAdnot n = Left ("Expected list of length 0, found " ++ niceType n)
+
+instance (FromAdnot a, FromAdnot b) => FromAdnot (a, b) where
+  parseAdnot (List [a, b]) = (,) <$> parseAdnot a <*> parseAdnot b
+  parseAdnot n = Left ("Expected list of length 2, found " ++ niceType n)
+
+instance (FromAdnot a, FromAdnot b, FromAdnot c) => FromAdnot (a, b, c) where
+  parseAdnot (List [a, b, c]) =
+    (,,) <$> parseAdnot a
+         <*> parseAdnot b
+         <*> parseAdnot c
+  parseAdnot n = Left ("Expected list of length 2, found " ++ niceType n)
+
+instance (FromAdnot a, FromAdnot b, FromAdnot c, FromAdnot d)
+         => FromAdnot (a, b, c, d) where
+  parseAdnot (List [a, b, c, d]) =
+    (,,,) <$> parseAdnot a
+          <*> parseAdnot b
+          <*> parseAdnot c
+          <*> parseAdnot d
+  parseAdnot n = Left ("Expected list of length 2, found " ++ niceType n)
+
+instance FromAdnot a => FromAdnot (Maybe a) where
+  parseAdnot (Sum "Nothing" []) = return Nothing
+  parseAdnot (Sum "Just" [x]) = Just <$> parseAdnot x
+  parseAdnot (Sum "Nothing" xs) =
+    Left ("Expected 0 arguments to Maybe, but found " ++ show (F.length xs))
+  parseAdnot (Sum "Just" xs) =
+    Left ("Expected 1 argument to Just, but found " ++ show (F.length xs))
+  parseAdnot (Sum t _) =
+    Left ("Expected tag \"Nothing\" or \"Just\", but found " ++ show t)
+  parseAdnot n =
+    Left ("Expected tagged value, but found " ++ niceType n)
+
+instance (FromAdnot a, FromAdnot b) => FromAdnot (Either a b) where
+  parseAdnot (Sum "Left" [l]) = Left <$> parseAdnot l
+  parseAdnot (Sum "Right" [r]) = Right <$> parseAdnot r
+  parseAdnot (Sum "Left" xs) =
+    Left ("Expected 1 arguments to Maybe, but found " ++ show (F.length xs))
+  parseAdnot (Sum "Right" xs) =
+    Left ("Expected 1 argument to Just, but found " ++ show (F.length xs))
+  parseAdnot (Sum t _) =
+    Left ("Expected tag \"Left\" or \"Right\", but found " ++ show t)
+  parseAdnot n =
+    Left ("Expected tagged value, but found " ++ niceType n)
+
+instance FromAdnot Bool where
+  parseAdnot (String "True") = return True
+  parseAdnot (String "False") = return False
+  parseAdnot (String t) =
+    Left ("Expected \"True\" or \"False\", but found " ++ show t)
+  parseAdnot n =
+    Left ("Expected string, but found " ++ niceType n)
+
+-- mapping types
+
+instance FromAdnot t => FromAdnot (MS.Map T.Text t) where
+  parseAdnot (Product as) =
+    traverse parseAdnot as
+  parseAdnot n = Left ("Expected product, found " ++ niceType n)
+
+
+(.:) :: FromAdnot a => Product -> T.Text -> Parser a
+p .: name
+  | Just x <- MS.lookup name p = parseAdnot x
+  | otherwise = Left ("Unable to look up " ++ show name ++ " in product")

@@ -14,16 +14,17 @@ import           Data.Adnot.Type
 decodeValue :: ByteString -> Either String Value
 decodeValue = parseOnly pVal
   where pVal = ws *> (pSum <|> pProd <|> pList <|> pLit)
-        pSum = Sum <$> (char '(' *> ws *> pIdent)
-                   <*> (pValueList <* char ')')
+        pSum = Sum <$> (char '(' *> ws *> (pIdent <|> pString))
+                   <*> (pValueList <* (ws *> char ')'))
         pProd =  Product . M.fromList
              <$> (char '{' *> pProdBody <* ws <* char '}')
         pProdBody = many' pPair
-        pPair = (,) <$> (ws *> pIdent) <*> pVal
+        pPair = (,) <$> (ws *> (pIdent <|> pString)) <*> pVal
         pList = List <$> (char '[' *> pValueList <* ws <* char ']')
-        pLit  =  Symbol  <$> pIdent
+        pLit  =  String  <$> pIdent
              <|> String  <$> pString
              <|> Integer <$> decimal
+        pStr = String <$> (pIdent <|> pString)
         pValueList = V.fromList <$> many' pVal
         pIdent = T.pack <$>
                  ((:) <$> (letter_ascii <|> char '_')
