@@ -1,6 +1,6 @@
-![stability: experimental](https://img.shields.io/badge/stability-experimental-red.svg)
-
 # Adnot
+
+![stability: experimental](https://img.shields.io/badge/stability-experimental-red.svg)
 
 **WARNING**: this repo contains unrepentant bikeshedding and wheel-reinvention. You almost definitely shouldn't use it, and it's probably best to disregard the entire thing!
 
