@@ -15,6 +15,7 @@ import           Control.Monad ((>=>))
 import           Data.Adnot.Parse
 import           Data.Adnot.Type
 import           Data.Adnot.Emit
+import           Data.Adnot.Parse
 import           Data.Int
 import           Data.Word
 import qualified Data.ByteString as BS
@@ -172,7 +173,13 @@ instance ToAdnot a => ToAdnot (NE.NonEmpty a) where
 instance ToAdnot a => ToAdnot (MS.Map T.Text a) where
   toAdnot ls = Product (fmap toAdnot ls)
 
--- Tuples
+product :: [(T.Text, Value)] -> Value
+product = Product . MS.fromList
+
+(.=) :: ToAdnot t => T.Text -> t -> (T.Text, Value)
+key .= val = (key, toAdnot val)
+
+-- * Tuples
 instance ToAdnot () where
   toAdnot () = List []
 
@@ -196,8 +203,8 @@ instance (ToAdnot a, ToAdnot b) => ToAdnot (Either a b) where
   toAdnot (Right y) = Sum "Right" [toAdnot y]
 
 instance ToAdnot Bool where
-  toAdnot True  = Symbol "True"
-  toAdnot False = Symbol "False"
+  toAdnot True  = String "True"
+  toAdnot False = String "False"
 
 -- Parsing
 
@@ -206,6 +213,14 @@ decode = decodeValue >=> parseAdnot
 
 type ParseError = String
 type Parser a = Either ParseError a
+
+niceType :: Value -> String
+niceType Sum {}     = "sum"
+niceType Product {} = "product"
+niceType List {}    = "list"
+niceType Integer {} = "integer"
+niceType Double {}  = "double"
+niceType String {}  = "string"
 
 withSum :: String -> (T.Text -> Array -> Parser a) -> Value -> Parser a
 withSum n k val = case val of
