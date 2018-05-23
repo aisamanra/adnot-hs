@@ -1,5 +1,7 @@
 # Adnot
 
+![stability: experimental](https://img.shields.io/badge/stability-experimental-red.svg)
+
 **WARNING**: this repo contains unrepentant bikeshedding and wheel-reinvention. You almost definitely shouldn't use it, and it's probably best to disregard the entire thing!
 
 The *Adnot* format is a simple data and configuration format intended to have a slightly enriched data model when compared to JSON or s-expressions but still retain the comparative simplicity of those formats. Unlike JSON, Adnot chooses to avoid redundant structural information like punctuation; unlike s-expressions, Adnot values natively express a wider range of basic data types.
