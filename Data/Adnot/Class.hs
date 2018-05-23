@@ -212,6 +212,14 @@ withSum n k val = case val of
   Sum t as -> k t as
   _        -> Left ("Expected sum in " ++ n)
 
+withSumNamed :: String -> T.Text -> (Array -> Parser a) -> Value -> Parser a
+withSumNamed n tag k val = case val of
+  Sum t as
+    | tag == t -> k as
+    | otherwise -> Left $ unwords
+        [ "Expected tag", T.unpack tag, "in", n, "but found", T.unpack t ]
+  _        -> Left ("Expected sum in " ++ n)
+
 withProduct :: String -> (Product -> Parser a) -> Value -> Parser a
 withProduct n k val = case val of
   Product ps -> k ps
@@ -229,7 +237,8 @@ withInteger n k val = case val of
 
 withDouble :: String -> (Double -> Parser a) -> Value -> Parser a
 withDouble n k val = case val of
-  Double d -> k d
+  Double d  -> k d
+  Integer i -> k (fromIntegral i)
   _        -> Left ("Expected double in " ++ n)
 
 withSymbol :: String -> (T.Text -> Parser a) -> Value -> Parser a
@@ -241,6 +250,19 @@ withString :: String -> (T.Text -> Parser a) -> Value -> Parser a
 withString n k val = case val of
   String s -> k s
   _        -> Left ("Expected string in " ++ n)
+
+(.:) :: FromAdnot a => Product -> T.Text -> Parser a
+map .: key = case MS.lookup key map of
+  Just x  -> parseAdnot x
+  Nothing -> Left ("Missing key " ++ show key)
+
+(.:?) :: FromAdnot a => Product -> T.Text -> Parser (Maybe a)
+map .:? key = case MS.lookup key map of
+  Just x  -> Just <$> parseAdnot x
+  Nothing -> return Nothing
+
+(.!=) :: Parser (Maybe a) -> a -> Parser a
+c .!= r = fmap (maybe r id) c
 
 class FromAdnot a where
   parseAdnot :: Value -> Parser a
