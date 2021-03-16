@@ -1,26 +1,24 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Data.Adnot.Class where
 
-import           Control.Monad ((>=>))
-import           Data.Adnot.Parse
-import           Data.Adnot.Type
-import           Data.Adnot.Emit
-import           Data.Adnot.Parse
-import           Data.Int
-import           Data.Word
+import Control.Monad ((>=>))
+import Data.Adnot.Emit
+import Data.Adnot.Parse
+import Data.Adnot.Type
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Foldable as F
+import Data.Int
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Lazy as ML
 import qualified Data.Map.Strict as MS
@@ -28,8 +26,9 @@ import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Vector as V
-import           GHC.Generics
-import           GHC.TypeLits (KnownSymbol)
+import Data.Word
+import GHC.Generics
+import GHC.TypeLits (KnownSymbol)
 
 encode :: ToAdnot a => a -> BSL.ByteString
 encode = encodeValue . toAdnot
@@ -46,8 +45,9 @@ instance ToAdnot x => GenToAdnot (K1 i x) where
 
 instance (GatherSequence f, Constructor name) => GenToAdnot (C1 name f) where
   genToAdnot (M1 x) = Sum (T.pack (conName c)) (V.fromList (gatherSequence x))
-    where c :: M1 c name f ()
-          c = undefined
+    where
+      c :: M1 c name f ()
+      c = undefined
 
 instance (GenToAdnot f) => GenToAdnot (S1 name f) where
   genToAdnot (M1 x) = genToAdnot x
@@ -66,8 +66,9 @@ instance (GatherRecord l, GatherRecord r) => GatherRecord (l :*: r) where
 
 instance (GenToAdnot f, Selector name) => GatherRecord (S1 name f) where
   gatherRecord (M1 x) = [(T.pack (selName s), genToAdnot x)]
-    where s :: S1 name f ()
-          s = undefined
+    where
+      s :: S1 name f ()
+      s = undefined
 
 instance GatherRecord U1 where
   gatherRecord U1 = []
@@ -98,7 +99,6 @@ genericToAdnot x = genToAdnot (from x)
 
 class ToAdnot a where
   toAdnot :: a -> Value
-
   default toAdnot :: (Generic a, GenToAdnot (Rep a)) => a -> Value
   toAdnot = genericToAdnot
 
@@ -180,6 +180,7 @@ product = Product . MS.fromList
 key .= val = (key, toAdnot val)
 
 -- * Tuples
+
 instance ToAdnot () where
   toAdnot () = List []
 
@@ -189,8 +190,10 @@ instance (ToAdnot a, ToAdnot b) => ToAdnot (a, b) where
 instance (ToAdnot a, ToAdnot b, ToAdnot c) => ToAdnot (a, b, c) where
   toAdnot (a, b, c) = List [toAdnot a, toAdnot b, toAdnot c]
 
-instance (ToAdnot a, ToAdnot b, ToAdnot c, ToAdnot d)
-         => ToAdnot (a, b, c, d) where
+instance
+  (ToAdnot a, ToAdnot b, ToAdnot c, ToAdnot d) =>
+  ToAdnot (a, b, c, d)
+  where
   toAdnot (a, b, c, d) = List [toAdnot a, toAdnot b, toAdnot c, toAdnot d]
 
 -- Common Haskell algebraic data types
@@ -199,11 +202,11 @@ instance ToAdnot a => ToAdnot (Maybe a) where
   toAdnot (Just x) = Sum "Just" [toAdnot x]
 
 instance (ToAdnot a, ToAdnot b) => ToAdnot (Either a b) where
-  toAdnot (Left x)  = Sum "Left" [toAdnot x]
+  toAdnot (Left x) = Sum "Left" [toAdnot x]
   toAdnot (Right y) = Sum "Right" [toAdnot y]
 
 instance ToAdnot Bool where
-  toAdnot True  = String "True"
+  toAdnot True = String "True"
   toAdnot False = String "False"
 
 -- Parsing
@@ -212,63 +215,66 @@ decode :: FromAdnot a => BS.ByteString -> Either String a
 decode = decodeValue >=> parseAdnot
 
 type ParseError = String
+
 type Parser a = Either ParseError a
 
 niceType :: Value -> String
-niceType Sum {}     = "sum"
+niceType Sum {} = "sum"
 niceType Product {} = "product"
-niceType List {}    = "list"
+niceType List {} = "list"
 niceType Integer {} = "integer"
-niceType Double {}  = "double"
-niceType String {}  = "string"
+niceType Double {} = "double"
+niceType String {} = "string"
 
 withSum :: String -> (T.Text -> Array -> Parser a) -> Value -> Parser a
 withSum n k val = case val of
   Sum t as -> k t as
-  _        -> Left ("Expected sum in " ++ n)
+  _ -> Left ("Expected sum in " ++ n)
 
 withSumNamed :: String -> T.Text -> (Array -> Parser a) -> Value -> Parser a
 withSumNamed n tag k val = case val of
   Sum t as
     | tag == t -> k as
-    | otherwise -> Left $ unwords
-        [ "Expected tag", T.unpack tag, "in", n, "but found", T.unpack t ]
-  _        -> Left ("Expected sum in " ++ n)
+    | otherwise ->
+      Left $
+        unwords
+          ["Expected tag", T.unpack tag, "in", n, "but found", T.unpack t]
+  _ -> Left ("Expected sum in " ++ n)
 
 withProduct :: String -> (Product -> Parser a) -> Value -> Parser a
 withProduct n k val = case val of
   Product ps -> k ps
-  _          -> Left ("Expected product in " ++ n)
+  _ -> Left ("Expected product in " ++ n)
 
 withList :: String -> (Array -> Parser a) -> Value -> Parser a
 withList n k val = case val of
   List ls -> k ls
-  _       -> Left ("Expected list in " ++ n)
+  _ -> Left ("Expected list in " ++ n)
 
 withInteger :: String -> (Integer -> Parser a) -> Value -> Parser a
 withInteger n k val = case val of
   Integer i -> k i
-  _         -> Left ("Expected integer in " ++ n)
+  _ -> Left ("Expected integer in " ++ n)
 
 withDouble :: String -> (Double -> Parser a) -> Value -> Parser a
 withDouble n k val = case val of
-  Double d  -> k d
+  Double d -> k d
   Integer i -> k (fromIntegral i)
-  _        -> Left ("Expected double in " ++ n)
+  _ -> Left ("Expected double in " ++ n)
 
 withString :: String -> (T.Text -> Parser a) -> Value -> Parser a
 withString n k val = case val of
   String s -> k s
-  _        -> Left ("Expected string in " ++ n)
+  _ -> Left ("Expected string in " ++ n)
 
 (.:) :: FromAdnot a => Product -> T.Text -> Parser a
 map .: key = case MS.lookup key map of
-  Just x  -> parseAdnot x
+  Just x -> parseAdnot x
   Nothing -> Left ("Missing key " ++ show key)
 
 (.:?) :: FromAdnot a => Product -> T.Text -> Parser (Maybe a)
 map .:? key = case MS.lookup key map of
-  Just x  -> Just <$> parseAdnot x
+  Just x -> Just <$> parseAdnot x
   Nothing -> return Nothing
 
 (.!=) :: Parser (Maybe a) -> a -> Parser a
@@ -332,13 +338,12 @@ instance FromAdnot T.Text where
   parseAdnot = withString "Text" return
 
 instance FromAdnot TL.Text where
-  parseAdnot = withString "Text"  (return . TL.fromStrict)
+  parseAdnot = withString "Text" (return . TL.fromStrict)
 
 instance FromAdnot Char where
   parseAdnot = withString "Char" $ \s -> case T.uncons s of
     Just (c, "") -> return c
-    _            -> Left "Expected a single-element string"
-
+    _ -> Left "Expected a single-element string"
 
 -- List types
 instance FromAdnot a => FromAdnot [a] where
@@ -358,7 +363,7 @@ instance FromAdnot a => FromAdnot (NE.NonEmpty a) where
     lst <- mapM parseAdnot ls
     case F.toList lst of
       [] -> Left "Expected non-empty sequence"
-      (x:xs) -> Right (x NE.:| xs)
+      (x : xs) -> Right (x NE.:| xs)
 
 -- Mapping types
 instance FromAdnot a => FromAdnot (MS.Map T.Text a) where
@@ -371,45 +376,50 @@ instance FromAdnot () where
   parseAdnot = withList "()" $ \ls ->
     case ls of
       [] -> return ()
-      _  -> Left "Expected empty list"
+      _ -> Left "Expected empty list"
 
 instance (FromAdnot a, FromAdnot b) => FromAdnot (a, b) where
   parseAdnot = withList "(a, b)" $ \ls ->
     case ls of
       [a, b] -> (,) <$> parseAdnot a <*> parseAdnot b
-      _      -> Left "Expected two-element list"
-
+      _ -> Left "Expected two-element list"
 
 instance (FromAdnot a, FromAdnot b, FromAdnot c) => FromAdnot (a, b, c) where
   parseAdnot = withList "(a, b, c)" $ \ls ->
     case ls of
       [a, b, c] -> (,,) <$> parseAdnot a <*> parseAdnot b <*> parseAdnot c
-      _         -> Left "Expected three-element list"
+      _ -> Left "Expected three-element list"
 
-
-instance (FromAdnot a, FromAdnot b, FromAdnot c, FromAdnot d)
-         => FromAdnot (a, b, c, d) where
+instance
+  (FromAdnot a, FromAdnot b, FromAdnot c, FromAdnot d) =>
+  FromAdnot (a, b, c, d)
+  where
   parseAdnot = withList "(a, b, c, d)" $ \ls ->
     case ls of
-      [a, b, c, d] -> (,,,) <$> parseAdnot a <*> parseAdnot b
-                            <*> parseAdnot c <*> parseAdnot d
-      _         -> Left "Expected four-element list"
+      [a, b, c, d] ->
+        (,,,) <$> parseAdnot a <*> parseAdnot b
+          <*> parseAdnot c
+          <*> parseAdnot d
+      _ -> Left "Expected four-element list"
 
 -- Common Haskell algebraic data types
 instance FromAdnot a => FromAdnot (Maybe a) where
   parseAdnot = withSum "Maybe" go
-    where go "Nothing" []  = return Nothing
-          go "Just"    [x] = Just <$> parseAdnot x
-          go _ _ = Left "Invalid Maybe"
+    where
+      go "Nothing" [] = return Nothing
+      go "Just" [x] = Just <$> parseAdnot x
+      go _ _ = Left "Invalid Maybe"
 
 instance (FromAdnot a, FromAdnot b) => FromAdnot (Either a b) where
   parseAdnot = withSum "Either" go
-    where go "Left"  [x] = Left <$> parseAdnot x
-          go "Right" [x] = Right <$> parseAdnot x
-          go _ _ = Left "Invalid Either"
+    where
+      go "Left" [x] = Left <$> parseAdnot x
+      go "Right" [x] = Right <$> parseAdnot x
+      go _ _ = Left "Invalid Either"
 
 instance FromAdnot Bool where
   parseAdnot = withString "Bool" go
-    where go "True"  = return True
-          go "False" = return False
-          go _ = Left "Invalid Bool"
+    where
+      go "True" = return True
+      go "False" = return False
+      go _ = Left "Invalid Bool"

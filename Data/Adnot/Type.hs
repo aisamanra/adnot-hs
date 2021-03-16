@@ -1,18 +1,18 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
-module Data.Adnot.Type (Value(..), Array, Product, isValidSymbol) where
+module Data.Adnot.Type (Value (..), Array, Product, isValidSymbol) where
 
-import           Control.DeepSeq (NFData(..))
+import Control.DeepSeq (NFData (..))
 import qualified Data.Char as C
-import           Data.Data (Data)
-import           Data.Typeable (Typeable)
-import           Data.Map.Strict (Map)
+import Data.Data (Data)
 import qualified Data.Map as M
-import           Data.Text (Text)
+import Data.Map.Strict (Map)
+import Data.Text (Text)
 import qualified Data.Text as T
-import           Data.Vector (Vector)
-import           GHC.Exts (IsString(..))
+import Data.Typeable (Typeable)
+import Data.Vector (Vector)
+import GHC.Exts (IsString (..))
 
 -- | An Adnot value represented as a Haskell value
 data Value
@@ -22,7 +22,7 @@ data Value
   | Integer !Integer
   | Double !Double
   | String !Text
-    deriving (Eq, Show, Read, Typeable, Data)
+  deriving (Eq, Show, Read, Typeable, Data)
 
 instance NFData Value where
   rnf (Sum t as) = rnf t `seq` rnf as
@@ -36,6 +36,7 @@ instance IsString Value where
   fromString = String . fromString
 
 type Array = Vector Value
+
 type Product = Map Text Value
 
 isValidSymbol :: Text -> Bool
