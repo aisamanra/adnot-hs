@@ -256,11 +256,6 @@ withDouble n k val = case val of
   Integer i -> k (fromIntegral i)
   _        -> Left ("Expected double in " ++ n)
 
-withSymbol :: String -> (T.Text -> Parser a) -> Value -> Parser a
-withSymbol n k val = case val of
-  Symbol s -> k s
-  _        -> Left ("Expected symbol in " ++ n)
-
 withString :: String -> (T.Text -> Parser a) -> Value -> Parser a
 withString n k val = case val of
   String s -> k s
@@ -414,7 +409,7 @@ instance (FromAdnot a, FromAdnot b) => FromAdnot (Either a b) where
           go _ _ = Left "Invalid Either"
 
 instance FromAdnot Bool where
-  parseAdnot = withSymbol "Bool" go
+  parseAdnot = withString "Bool" go
     where go "True"  = return True
           go "False" = return False
           go _ = Left "Invalid Bool"
